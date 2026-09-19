@@ -1,0 +1,19 @@
+# Copy this file to config.yaml and replace the placeholders with your own values.
+# Never commit config.yaml or real credentials.
+
+db:
+  host: "<your-db-host>"
+  port: "<your-db-port>"
+  user: "<your-db-user>"
+  password: "<your-db-password>"
+  database: "incident_db"
+
+gemini:
+  api:
+    key: "<your-gemini-api-key>"
+
+smtp:
+  host: "smtp.gmail.com"
+  port: "587"
+  user: "<your-email-address>"
+  password: "<your-email-app-password>"
