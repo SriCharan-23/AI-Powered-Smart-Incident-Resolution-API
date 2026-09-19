@@ -1,0 +1,11 @@
+{
+  "currentIncidentId": "INC10001",
+  "similarIncidents": [
+    {
+      "incidentId": "INC10002",
+      "title": "VPN timeout",
+      "resolutionNotes": "Restarted VPN",
+      "similarityScore": 0.92
+    }
+  ]
+}

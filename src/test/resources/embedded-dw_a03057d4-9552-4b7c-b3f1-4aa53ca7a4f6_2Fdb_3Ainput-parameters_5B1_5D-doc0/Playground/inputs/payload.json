@@ -1,0 +1,36 @@
+{
+  "$schema": "sodales",
+  "type": "libero",
+  "properties": {
+    "incident_id": {
+      "type": "Pellentesque"
+    },
+    "customer_id": {
+      "type": "Nam"
+    },
+    "title": {
+      "type": "risus"
+    },
+    "description": {
+      "type": "viverra"
+    },
+    "severity": {
+      "type": "nisi"
+    },
+    "category": {
+      "type": "erat"
+    },
+    "contact_email": {
+      "type": "justo"
+    },
+    "correlation_id": {
+      "type": "tempor"
+    },
+    "status": {
+      "type": "lectus"
+    },
+    "created_at": {
+      "type": "tincidunt"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+# Secrets and credentials
+src/main/resources/config.yaml
+src/main/resources/config.properties
+src/main/resources/*-secrets.*
+src/main/resources/*.jks
+src/main/resources/*.p12
+.env
+*.pem
+
+# Build output and deployables
+target/
+*.jar
+
+# Anypoint Studio / Eclipse
+.mule/
+.classpath
+.project
+.settings/
+.metadata/
+.studio/
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

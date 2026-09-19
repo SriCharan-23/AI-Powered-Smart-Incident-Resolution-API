@@ -1,0 +1,36 @@
+{
+  "$schema": "sit",
+  "type": "nisi",
+  "properties": {
+    "incident_id": {
+      "type": "amet"
+    },
+    "customer_id": {
+      "type": "molestie"
+    },
+    "title": {
+      "type": "sit"
+    },
+    "description": {
+      "type": "vitae"
+    },
+    "severity": {
+      "type": "consectetur"
+    },
+    "category": {
+      "type": "erat"
+    },
+    "contact_email": {
+      "type": "tempor"
+    },
+    "correlation_id": {
+      "type": "Aliquam"
+    },
+    "status": {
+      "type": "Nam"
+    },
+    "created_at": {
+      "type": "at"
+    }
+  }
+}

@@ -1,0 +1,504 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+	<!-- ============================================================
+	     Database Configuration
+	     ============================================================ -->
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="74cd3b01-4009-4ee6-8b65-098dc6e97e21">
+		<db:my-sql-connection 
+		host="${db.host}" 
+		port="${db.port}" 
+		user="${db.user}" 
+		password="${db.password}" 
+		database="${db.database}" />
+	</db:config>
+
+	<!-- ============================================================
+	     Flow: create-incident-db-flow
+	     Generates incidentId + correlationId, builds payload,
+	     inserts into incidents + audit_logs tables.
+	     Includes duplicate incident validation.
+	     ============================================================ -->
+	<flow name="create-incident-db-flow" doc:id="dffb31f1-c26d-4812-90ba-64c27bc39cb1">
+
+		<!-- Step 1a: Generate IDs — single source of truth for incidentId/correlationId -->
+		<ee:transform doc:name="Generate IDs" doc:id="4b07ef7c-5406-4a1b-b9a4-13e9aa9a6413">
+			<ee:variables>
+				<ee:set-variable variableName="incidentId"><![CDATA[%dw 2.0
+output application/java
+
+---
+"INC" ++ (now() as String {format: "yyyyMMddHHmmss"})]]></ee:set-variable>
+				<ee:set-variable variableName="correlationId"><![CDATA[%dw 2.0
+output application/java
+---
+uuid()]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+
+		<!-- Step 1b: Save raw inbound payload before any transform -->
+		<set-variable value="#[payload]" doc:name="Store Original Payload" doc:id="b2f1a5d8-09eb-4f28-8efa-08645e2e1100" variableName="originalPayload" />
+
+		<!-- Step 1c: Build structured payload using now-initialized vars.incidentId and vars.correlationId -->
+		<ee:transform doc:name="Build Incident Payload" doc:id="49af303f-52e2-47e0-979b-f0b50fc858f3">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    incident_id:    vars.incidentId,
+    customer_id:    payload.customerId default payload.customer_id    default null,
+    title:          payload.title,
+    description:    payload.description,
+    severity:       payload.severity,
+    category:       payload.category,
+    contact_email:  payload.contactEmail default payload.contact_email  default null,
+    correlation_id: vars.correlationId,
+    status:         "OPEN",
+    created_at:     now() as String
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+
+		<!-- Step 2: Log generated IDs -->
+		<logger level="INFO"
+			doc:name="Log Incident IDs"
+			doc:id="56225e16-74cd-4262-813d-de69e7e80a6f"
+			message="Incident ID: #[vars.incidentId] | Correlation ID: #[vars.correlationId]" />
+
+		<!-- Step 4: Check for duplicate incidents -->
+		<db:select doc:name="Check Duplicate Incident" doc:id="f491a1af-f894-490d-8917-e61e1b772463" config-ref="Database_Config">
+			<db:sql><![CDATA[SELECT incident_id
+FROM incidents
+WHERE customer_id = :customer_id
+AND title = :title
+AND status = 'OPEN'
+LIMIT 1]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+				customer_id: vars.originalPayload.customerId,
+				title: vars.originalPayload.title
+			}]]]></db:input-parameters>
+		</db:select>
+
+		<!-- Step 5: Choice router to handle duplicates -->
+		<choice doc:name="Check for Duplicate" doc:id="3689f11b-2ff0-4927-927a-b24c05a89ef4">
+			<when expression="#[sizeOf(payload) > 0]">
+				<!-- Duplicate found - return 409 Conflict -->
+				<set-variable value="409" doc:name="Set HTTP Status 409" doc:id="50054a3e-07e8-445e-912c-b803eabbae99" variableName="httpStatus" />
+				<ee:transform doc:name="Set Duplicate Response" doc:id="89d6f3c2-480b-48bf-ac0c-d7ab59097593">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "message": "Duplicate incident already exists",
+    "existing_incident_id": payload[0].incident_id
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Log Duplicate Found" doc:id="d29bf565-71d1-4b51-a693-67c5b24912db" message="Duplicate incident found for customer_id: #[vars.originalPayload.customerId], title: #[vars.originalPayload.title]" />
+			</when>
+			<otherwise>
+				<!-- No duplicate - continue with normal flow -->
+				<!--  &#45;&#45;<set-payload value="#[vars.originalPayload]" doc:name="Restore Original Payload" doc:id="fb886841-e8aa-4ac1-b727-000fb9e46b48" />-->
+				
+				<!-- Step 6: Insert into incidents table -->
+				<db:insert doc:name="Insert Incident" doc:id="051bd601-a54e-4a99-b9a4-52287c0ea5c6" config-ref="Database_Config">
+					<db:sql><![CDATA[INSERT INTO incidents
+(
+  incident_id,
+  customer_id,
+  title,
+  description,
+  severity,
+  category,
+  contact_email,
+  status,
+  correlation_id,
+  created_at
+)
+VALUES
+(
+  :incident_id,
+  :customer_id,
+  :title,
+  :description,
+  :severity,
+  :category,
+  :contact_email,
+  :status,
+  :correlation_id,
+  :created_at
+)]]></db:sql>
+<db:input-parameters><![CDATA[#[{
+    incident_id:    vars.incidentId,
+    customer_id:    vars.originalPayload.customerId   default vars.originalPayload.customer_id   default null,
+    title:          vars.originalPayload.title,
+    description:    vars.originalPayload.description,
+    severity:       vars.originalPayload.severity,
+    category:       vars.originalPayload.category,
+    contact_email:  vars.originalPayload.contactEmail default vars.originalPayload.contact_email default null,
+    status:         "OPEN",
+    correlation_id: vars.correlationId,
+    created_at:     now() as String {format: "yyyy-MM-dd HH:mm:ss"}
+}]]]></db:input-parameters>
+				</db:insert>
+
+				<!-- Step 7: Log before audit insert -->
+				<logger level="INFO"
+					doc:name="Log Before Audit Insert"
+					doc:id="65812e7e-c8d5-4c3a-84fa-c2ad339eac0d"
+					message="Before Audit Insert - Incident ID: #[vars.incidentId] | Correlation ID: #[vars.correlationId]" />
+
+				<!-- Step 8: Insert into audit_logs table -->
+				<db:insert doc:name="Insert Audit Log" doc:id="9528f7f6-3ded-4683-9756-1687590070fd" config-ref="Database_Config">
+					<db:sql><![CDATA[INSERT INTO audit_logs
+(
+    incident_id,
+    correlation_id,
+    api_name,
+    action,
+    status,
+    error_message,
+    retry_count,
+    created_at
+)
+VALUES
+(
+    :incident_id,
+    :correlation_id,
+    :api_name,
+    :action,
+    :status,
+    :error_message,
+    :retry_count,
+    :created_at
+)]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+    incident_id:    vars.incidentId,
+    correlation_id: vars.correlationId,
+    api_name:       "Incident API",
+    action:         "CREATE_INCIDENT",
+    status:         "SUCCESS",
+    error_message:  null,
+    retry_count:    0,
+    created_at:     now() as String
+}]]]></db:input-parameters>
+				</db:insert>
+
+				<!-- Step 9: Return success response -->
+				<ee:transform doc:name="Set Success Response" doc:id="312bcf62-5316-418c-b2bb-c3693d4b525f">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message:        "Incident inserted into database successfully",
+    incident_id:    vars.incidentId,
+    correlation_id: vars.correlationId,
+    status:         "OPEN"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+
+	</flow>
+
+	<!-- ============================================================
+	     Flow: get-incident-db-flow
+	     Retrieves a single incident by incidentId URI param.
+	     ============================================================ -->
+	<flow name="get-incident-db-flow" doc:id="47215fd1-18ca-4270-a68e-14c3ec79b2fd">
+
+		<!-- Step 1: Select incident from DB -->
+		<db:select doc:name="Select Incident" doc:id="f7076974-9806-46da-b61c-6d245a95b0e5" config-ref="Database_Config">
+			<db:sql><![CDATA[SELECT * FROM incidents
+WHERE incident_id = :incident_id]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    incident_id: attributes.uriParams.incidentId
+}]]]></db:input-parameters>
+		</db:select>
+
+		<!-- Step 2: Route based on whether record was found -->
+		<choice doc:name="Check If Incident Found" doc:id="266755c5-38c5-47f9-aea9-f71c0530f263">
+			<when expression="#[sizeOf(payload) > 0]">
+				<ee:transform doc:name="Transform to Response" doc:id="7c67b8c7-7103-4f88-8e41-b5e444adb2fe">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    incident_id:   payload[0].incident_id,
+    customer_id:   payload[0].customer_id,
+    title:         payload[0].title,
+    description:   payload[0].description,
+    severity:      payload[0].severity,
+    category:      payload[0].category,
+    contact_email: payload[0].contact_email,
+    status:        payload[0].status,
+    created_at:    payload[0].created_at
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<ee:transform doc:name="404 Not Found" doc:id="c4f3ed4d-50a9-463c-9e26-6060254b49fb">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Incident not found"
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="httpStatus">404</ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+			</otherwise>
+		</choice>
+
+	</flow>
+
+	<!-- ============================================================
+	     Flow: retry-incident-db-flow
+	     Adds a manual retry request to the retry_queue table.
+	     FIX (Bug #11): Added created_at to INSERT for auditability.
+	     ============================================================ -->
+	<flow name="retry-incident-db-flow" doc:id="19020a05-5565-40ca-b43b-0ff0d4431025">
+
+		<!-- Step 1: Build retry payload -->
+		<ee:transform doc:name="Transform Message" doc:id="fd138b73-91ba-459e-91d1-af14ea75eed7">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    incident_id:  payload.incidentId default payload.incident_id,
+    retry_reason: "Manual Retry Requested",
+    retry_status: "PENDING"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+
+		<!-- Step 2: Insert retry record -->
+		<db:insert doc:name="Insert Retry Record" doc:id="0ff2de20-31d3-4860-a5c7-de153d34d288" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO retry_queue
+(
+    incident_id,
+    retry_reason,
+    retry_status
+)
+VALUES
+(
+    :incident_id,
+    :retry_reason,
+    :retry_status
+)]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    incident_id:  payload.incident_id,
+    retry_reason: payload.retry_reason,
+    retry_status: payload.retry_status
+}]]]></db:input-parameters>
+		</db:insert>
+
+		<!-- Step 3: Return success response -->
+		<ee:transform doc:name="Set Success Response" doc:id="93ae0c24-bf0b-416e-94e2-f3503a6f72dd">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Retry request added successfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+
+	</flow>
+
+	<!-- ============================================================
+	     Flow: incident-log-db-flow
+	     Inserts a file/log entry into the incident_logs table.
+	     Depends on vars.incidentId, vars.fileName, vars.fileBase64
+	     (all set by the upload flow before calling this sub-flow).
+	     ============================================================ -->
+	<flow name="incident-log-db-flow" doc:id="4e9db7dd-3b03-4506-b079-36631cb5a65a">
+
+		<!-- Step 1: Log incoming upload -->
+		<logger level="INFO"
+				doc:name="Log Incoming Log Entry"
+				doc:id="a6559c0e-ea75-4210-8176-772d31a66c1e"
+				message="#['incident-log-db-flow — incidentId=' ++ (vars.incidentId default 'unknown') ++ ', fileName=' ++ (vars.fileName default 'unknown') ++ ', contentType=' ++ (vars.contentType default 'unknown')]" />
+
+		<!-- Step 2: Insert file metadata -->
+		<db:insert doc:name="Insert Log Metadata" doc:id="4fa0ae5a-e565-4967-bb0d-724bc3b9ed5c" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO logs_metadata
+(
+    incident_id,
+    file_name,
+    file_path,
+    file_size,
+    processing_status,
+    created_at
+)
+VALUES
+(
+    :incident_id,
+    :file_name,
+    :file_path,
+    :file_size,
+    :processing_status,
+    :created_at
+)]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    incident_id:       vars.incidentId,
+    file_name:         vars.fileName,
+    file_path:         "uploaded/" ++ (vars.incidentId default "unknown") ++ "/" ++ (vars.fileName default "file"),
+    file_size:         sizeOf(vars.fileBase64 default ""),
+    processing_status: "UPLOADED",
+    created_at:        now() as String
+}]]]></db:input-parameters>
+		</db:insert>
+
+		<!-- Step 3: Return success -->
+		<ee:transform doc:name="Set Upload Response"
+		              doc:id="6a3d4885-fadc-42e8-8541-a387de53e5dc">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message:    "File uploaded and metadata saved successfully",
+    incidentId: vars.incidentId,
+    fileName:   vars.fileName,
+    status:     "UPLOADED"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+
+	</flow>
+
+	<!-- ============================================================
+	     Flow: insert-failed-record-db-flow
+	     Persists a failed payload with reason to failed_records table.
+	     ============================================================ -->
+	<flow name="insert-failed-record-db-flow" doc:id="5d33ed29-d646-4fc2-8b38-e6cf1fe577b6">
+
+		<!-- Step 1: Log incoming failure -->
+		<logger level="INFO"
+			doc:name="Log Failed Record Insert"
+			doc:id="9e6be413-f20e-4a47-9c3b-ea515fe3b88a"
+			message="Inserting failed record into database: #[vars.failureReason]" />
+
+		<!-- Step 2: Insert failed record -->
+		<db:insert doc:name="Insert Failed Record" doc:id="3405a9f1-8b28-42d1-af32-04e82a9795fa" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO failed_records
+(
+    incident_payload,
+    failure_reason
+)
+VALUES
+(
+    :incident_payload,
+    :failure_reason
+)]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    incident_payload: write(vars.originalPayload default payload, "application/json"),
+    failure_reason:   vars.failureReason
+}]]]></db:input-parameters>
+		</db:insert>
+
+		<!-- Step 3: Restore original payload for upstream use -->
+		<set-payload
+			value="#[vars.originalPayload default payload]"
+			doc:name="Restore Original Payload"
+			doc:id="21ed9a07-5cd2-482a-8599-dff05402aee6" />
+
+		<!-- Step 4: Log success -->
+		<logger level="INFO"
+			doc:name="Log Failed Record Inserted"
+			doc:id="2b0e5be6-e54f-4fe1-86ca-6ed84c5d15d6"
+			message="Failed record inserted successfully: #[vars.failureReason]" />
+
+	</flow>
+
+	<!-- ============================================================
+	     Flow: insert-embedding-db-flow
+	     Serializes embedding_vector array to JSON string and inserts
+	     into incident_embeddings (LONGTEXT column).
+	     ============================================================ -->
+	<flow name="insert-embedding-db-flow" doc:id="ce2ed05b-4e4f-4d2f-a6d2-c0709f6fd0bc">
+		<logger level="INFO"
+			doc:name="Embedding Generated"
+			doc:id="e997ccdd-f4ce-4b56-b843-f1b5d246f43d"
+			message="AI embedding generated for incident #[payload.incident_id]"/>
+
+		<!--
+		  STEP 1: Serialize the embedding vector array to a JSON string.
+		  write(payload.embedding_vector default [], "application/json")
+		  produces a plain text string such as "[0.123, 0.456, ...]".
+		  After this transform payload.embedding_vector IS that string.
+		  MySQL column type must be LONGTEXT to accept this string.
+		-->
+		<ee:transform doc:name="Prepare Real Gemini Embedding for Storage"
+			doc:id="fc1a68da-865d-4101-82a0-96e5861fe1ab"
+			doc:description="Serializes the embedding_vector array to a JSON string using write(). After this transform payload.embedding_vector is a plain-text JSON string ready for LONGTEXT insertion.">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    incident_id:      payload.incident_id,
+    embedding_vector: write(payload.embedding_vector default [], "application/json"),
+    model_used:       "gemini-embedding-2"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+
+		<set-variable variableName="embeddingIncidentId" value="#[payload.incident_id]"
+			doc:name="Store Embedding Incident ID" doc:id="4d31a793-9341-4c14-8a0c-51b1803fc18d"/>
+
+		<!--
+		  STEP 2: Insert into incident_embeddings.
+		  payload.embedding_vector is already the serialized JSON string.
+		-->
+		<db:insert doc:name="Insert Embedding into incident_embeddings"
+			doc:id="5ef276f2-39a0-46c1-9b7f-97f3df3bc822"
+			doc:description="Inserts the serialized embedding string into the LONGTEXT column."
+			config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO incident_embeddings
+(
+    incident_id,
+    embedding_vector,
+    model_used
+)
+VALUES
+(
+    :incident_id,
+    :embedding_vector,
+    :model_used
+)]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    incident_id:      payload.incident_id,
+    embedding_vector: payload.embedding_vector,
+    model_used:       payload.model_used
+}]]]></db:input-parameters>
+		</db:insert>
+
+		<logger level="INFO" doc:name="Logger" doc:id="bbc5ff76-0fcf-4ab2-9eda-ea6d9bc678ee"
+			message="AI embedding generated and stored for incident #[vars.embeddingIncidentId]"/>
+	</flow>
+
+
+</mule>

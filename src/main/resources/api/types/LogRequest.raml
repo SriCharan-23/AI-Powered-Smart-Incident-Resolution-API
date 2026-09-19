@@ -1,0 +1,15 @@
+#%RAML 1.0 DataType
+
+type: object
+properties:
+  log_message:
+    type: string
+    required: true
+    description: The log message content
+    example: "Application stack trace attached"
+  file_name:
+    type: string
+    required: true
+    description: The name of the log file
+    example: "server-error.log"
+example: !include ../examples/logRequest.json

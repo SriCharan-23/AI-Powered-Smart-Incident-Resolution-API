@@ -1,0 +1,8 @@
+{
+  "customerId": "CUST1001",
+  "title": "Database timeout issue",
+  "description": "Unable to connect to DB",
+  "severity": "HIGH",
+  "category": "DATABASE",
+  "contactEmail": "admin@test.com"
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "adipiscing",
+  "type": "ipsum",
+  "properties": {
+    "incident_id": {
+      "type": "nunc"
+    },
+    "customer_id": {
+      "type": "dui"
+    },
+    "title": {
+      "type": "nunc"
+    },
+    "description": {
+      "type": "dolor"
+    },
+    "severity": {
+      "type": "aliquam"
+    },
+    "category": {
+      "type": "lorem"
+    },
+    "contact_email": {
+      "type": "ipsum"
+    },
+    "correlation_id": {
+      "type": "vitae"
+    },
+    "status": {
+      "type": "nisi"
+    },
+    "created_at": {
+      "type": "ipsum"
+    }
+  }
+}

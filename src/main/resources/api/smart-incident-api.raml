@@ -1,0 +1,308 @@
+#%RAML 1.0
+title: Smart Incident Resolution API
+version: v1
+baseUri: /api/v1
+
+mediaType: application/json
+
+securitySchemes:
+  client-id-enforcement: !include security/securityScheme.raml
+
+securedBy:
+  - client-id-enforcement
+
+traits:
+  pageable: !include traits/pageable.raml
+  dateFilterable: !include traits/dateFilterable.raml
+
+types:
+  IncidentRequest: !include types/IncidentRequest.raml
+  IncidentResponse: !include types/IncidentResponse.raml
+  ErrorResponse: !include types/ErrorResponse.raml
+  SimilarIncident: !include types/SimilarIncident.raml
+  SimilarIncidentsResponse: !include types/SimilarIncidentsResponse.raml
+  AISummaryResponse: !include types/AISummaryResponse.raml
+  RetryRequest: !include types/RetryRequest.raml
+  
+
+/incidents:
+
+  post:
+
+    description: Create a new support incident
+
+    body:
+      application/json:
+        type: IncidentRequest
+        example: !include examples/createIncidentRequest.json
+
+    responses:
+
+      201:
+        description: Incident created successfully
+        body:
+          application/json:
+            type: IncidentResponse
+            example: !include examples/createIncidentResponse.json
+
+      400:
+        description: Invalid request payload
+        body:
+          application/json:
+            type: ErrorResponse
+            
+
+      401:
+        description: Unauthorized request
+        body:
+          application/json:
+            type: ErrorResponse
+            
+
+      409:
+        description: Duplicate incident already exists
+        body:
+          application/json:
+            type: ErrorResponse
+            
+
+      500:
+        description: Internal server error
+        body:
+          application/json:
+            type: ErrorResponse
+            
+  /{incidentId}:
+
+    uriParameters:
+      incidentId:
+        type: string
+        required: true
+        example: "INC20260517155148"
+
+    get:
+
+      description: Retrieve incident details by incident ID
+
+      responses:
+
+        200:
+          description: Incident fetched successfully
+          body:
+            application/json:
+              type: IncidentResponse
+
+        400:
+          description: Invalid incident ID
+          body:
+            application/json:
+              type: ErrorResponse
+              
+
+        401:
+          description: Unauthorized request
+          body:
+            application/json:
+              type: ErrorResponse
+              
+
+        404:
+          description: Incident not found
+          body:
+            application/json:
+              type: ErrorResponse
+              
+
+        500:
+          description: Internal server error
+          body:
+            application/json:
+              type: ErrorResponse
+              
+
+    /logs:
+
+      post:
+
+        description: Upload logs or screenshots for an incident
+
+        body:
+          multipart/form-data:
+            properties:
+              file:
+                type: file
+                required: true
+
+        responses:
+
+          201:
+            description: Log uploaded successfully
+            body:
+              application/json:
+                example:
+                  message: "Log uploaded successfully"
+
+          400:
+            description: Invalid log request
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          401:
+            description: Unauthorized request
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          404:
+            description: Incident not found
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          500:
+            description: Internal server error
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+    /similar:
+
+      get:
+
+        description: Find semantically similar incidents using AI similarity search
+        
+
+       
+
+        responses:
+
+          200:
+            description: Similar incidents retrieved successfully
+            body:
+              application/json:
+                type: SimilarIncidentsResponse
+                example: !include examples/similarIncidentsResponse.json
+
+          400:
+            description: Invalid request
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          401:
+            description: Unauthorized request
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          404:
+            description: Incident not found
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          500:
+            description: Internal server error
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+    /summarize:
+
+      post:
+
+        description: Generate AI summary for incident and uploaded logs
+
+        responses:
+
+          200:
+            description: AI summary generated successfully
+            body:
+              application/json:
+                type: AISummaryResponse
+                example: !include examples/aiSummaryResponse.json
+
+          400:
+            description: Invalid summarize request
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          401:
+            description: Unauthorized request
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          404:
+            description: Incident not found
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+          500:
+            description: Internal server error
+            body:
+              application/json:
+                type: ErrorResponse
+                
+
+/incidents/retry:
+
+  post:
+
+    description: Retry processing failed incidents
+
+    body:
+      application/json:
+        type: RetryRequest
+        example: !include examples/retryRequest.json
+
+    responses:
+
+      200:
+        description: Retry request processed successfully
+        body:
+          application/json:
+            example:
+              message: "Retry initiated successfully"
+            
+
+      400:
+        description: Invalid retry request
+        body:
+          application/json:
+            type: ErrorResponse
+            
+
+      401:
+        description: Unauthorized request
+        body:
+          application/json:
+            type: ErrorResponse
+            
+
+      404:
+        description: Retry record not found
+        body:
+          application/json:
+            type: ErrorResponse
+            
+
+      500:
+        description: Internal server error
+        body:
+          application/json:
+            type: ErrorResponse

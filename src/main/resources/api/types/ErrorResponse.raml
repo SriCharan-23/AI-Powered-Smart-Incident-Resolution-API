@@ -1,0 +1,15 @@
+#%RAML 1.0 DataType
+type: object
+properties:
+  timestamp: datetime
+  status: integer
+  error: string
+  message: string
+  correlationId: string
+
+example:
+  timestamp: "2026-05-17T18:30:00Z"
+  status: 400
+  error: "Bad Request"
+  message: "Invalid request"
+  correlationId: "550e8400-e29b-41d4-a716-446655440000"

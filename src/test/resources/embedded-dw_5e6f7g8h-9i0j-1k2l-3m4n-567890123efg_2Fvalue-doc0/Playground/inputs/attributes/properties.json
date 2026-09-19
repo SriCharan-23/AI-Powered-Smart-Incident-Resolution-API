@@ -1,0 +1,32 @@
+{
+  "incident_id": {
+    "type": "risus"
+  },
+  "customer_id": {
+    "type": "nisi"
+  },
+  "title": {
+    "type": "Nam"
+  },
+  "description": {
+    "type": "dolor"
+  },
+  "severity": {
+    "type": "nibh"
+  },
+  "category": {
+    "type": "venenatis"
+  },
+  "contact_email": {
+    "type": "semper"
+  },
+  "correlation_id": {
+    "type": "In"
+  },
+  "status": {
+    "type": "Nunc"
+  },
+  "created_at": {
+    "type": "sed"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "tempor",
+  "type": "consectetur",
+  "properties": {
+    "incident_id": {
+      "type": "semper"
+    },
+    "customer_id": {
+      "type": "dictum"
+    },
+    "title": {
+      "type": "a"
+    },
+    "description": {
+      "type": "nibh"
+    },
+    "severity": {
+      "type": "dolor"
+    },
+    "category": {
+      "type": "tempor"
+    },
+    "contact_email": {
+      "type": "ipsum"
+    },
+    "correlation_id": {
+      "type": "ipsum"
+    },
+    "status": {
+      "type": "nunc"
+    },
+    "created_at": {
+      "type": "Nam"
+    }
+  }
+}

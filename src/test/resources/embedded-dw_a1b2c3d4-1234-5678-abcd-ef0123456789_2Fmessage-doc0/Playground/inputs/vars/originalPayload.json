@@ -1,0 +1,36 @@
+{
+  "$schema": "venenatis",
+  "type": "ut",
+  "properties": {
+    "incident_id": {
+      "type": "aliquam"
+    },
+    "customer_id": {
+      "type": "Nunc"
+    },
+    "title": {
+      "type": "semper"
+    },
+    "description": {
+      "type": "nunc"
+    },
+    "severity": {
+      "type": "mi"
+    },
+    "category": {
+      "type": "nunc"
+    },
+    "contact_email": {
+      "type": "consectetur"
+    },
+    "correlation_id": {
+      "type": "pretium"
+    },
+    "status": {
+      "type": "nibh"
+    },
+    "created_at": {
+      "type": "ac"
+    }
+  }
+}

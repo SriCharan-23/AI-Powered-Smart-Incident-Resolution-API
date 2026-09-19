@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:db="http://www.mulesoft.org/schema/mule/db"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+
+      xsi:schemaLocation="
+      http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+      http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+
+    <munit:config name="ai-summary-test"/>
+
+    <munit:test name="ai-summary-success-test"
+                description="Test AI Summarization Flow">
+
+        <munit:behavior>
+
+            <!-- Mock AI API call -->
+            <munit-tools:mock-when processor="http:request">
+                <munit-tools:then-return>
+
+                    <munit-tools:payload
+                        mediaType="application/json"
+                        value='#[output application/json ---
+{
+   embedding: {
+      values: [0.12,0.34,0.56]
+   }
+}]'/>
+
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+            <!-- Mock DB insert -->
+            <munit-tools:mock-when processor="db:insert">
+                <munit-tools:then-return/>
+            </munit-tools:mock-when>
+
+        </munit:behavior>
+
+        <munit:execution>
+
+            <!-- INPUT PAYLOAD -->
+            <set-payload
+                value='#[{
+                    incidentId: "INC001",
+                    title: "Server Down",
+                    description: "Production server unavailable",
+                    category: "Infrastructure",
+                    severity: "HIGH",
+                    retryCount: 0
+                }]'/>
+
+            <!-- Needed for vars.originalPayload -->
+            <set-variable
+                variableName="originalPayload"
+                value='#[payload]'/>
+
+            <flow-ref name="consume-ai-vm-flow"/>
+
+        </munit:execution>
+
+        <munit:validation>
+
+            <munit-tools:verify-call
+                processor="db:insert"
+                times="1"/>
+
+        </munit:validation>
+
+    </munit:test>
+
+</mule>

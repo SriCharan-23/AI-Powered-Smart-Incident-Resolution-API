@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<types:mule xmlns:types="http://www.mulesoft.org/schema/mule/types">
+  <types:catalog>
+    <types:type name="LogPayload" format="json">
+      <types:shape format="weave" example="logPayload.json"><![CDATA[%dw 2.0
+
+type LogPayload = {|
+  incident_id: String, 
+  file_name: String, 
+  content_type: String
+|} {"example": "{\\\"incident_id\\\":\\\"INC001\\\",\\\"file_name\\\":\\\"sample.jpg\\\",\\\"content_type\\\":\\\"image\\/jpeg\\\"}"}
+
+]]></types:shape>
+    </types:type>
+    <types:type name="incidentPayload" format="json">
+      <types:shape format="weave" example="schemas/incidentResponse.json"><![CDATA[%dw 2.0
+
+type incidentPayload = {|
+  "$schema": String, 
+  "type": String, 
+  properties: {|
+    incident_id: {| "type": String |}, 
+    customer_id: {| "type": String |}, 
+    title: {| "type": String |}, 
+    description: {| "type": String |}, 
+    severity: {| "type": String |}, 
+    category: {| "type": String |}, 
+    contact_email: {| "type": String |}, 
+    correlation_id: {| "type": String |}, 
+    status: {| "type": String |}, 
+    created_at: {| "type": String |}
+  |}
+|} {"example": "{\\\"\$schema\\\":\\\"http:\\/\\/json-schema.org\\/draft-04\\/schema#\\\",\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"incident_id\\\":{\\\"type\\\":\\\"string\\\"},\\\"customer_id\\\":{\\\"type\\\":\\\"string\\\"},\\\"title\\\":{\\\"type\\\":\\\"string\\\"},\\\"description\\\":{\\\"type\\\":\\\"string\\\"},\\\"severity\\\":{\\\"type\\\":\\\"string\\\"},\\\"category\\\":{\\\"type\\\":\\\"string\\\"},\\\"contact_email\\\":{\\\"type\\\":\\\"string\\\"},\\\"correlation_id\\\":{\\\"type\\\":\\\"string\\\"},\\\"status\\\":{\\\"type\\\":\\\"string\\\"},\\\"created_at\\\":{\\\"type\\\":\\\"string\\\"}}}"}
+
+]]></types:shape>
+    </types:type>
+  </types:catalog>
+  <types:enrichment select="#d3a2115e-5956-4961-94c2-26803ab79e60">
+    <types:processor-declaration>
+      <types:input-event>
+        <types:message>
+          <types:payload type="LogPayload"/>
+        </types:message>
+      </types:input-event>
+    </types:processor-declaration>
+  </types:enrichment>
+  <types:enrichment select="#1b9bcdfc-19b3-434f-b121-5167b547655b">
+    <types:processor-declaration>
+      <types:input-event>
+        <types:message>
+          <types:payload type="incidentPayload"/>
+          <types:attributes type="incidentPayload"/>
+        </types:message>
+      </types:input-event>
+      <types:output-event>
+        <types:message>
+          <types:payload type="incidentPayload"/>
+        </types:message>
+      </types:output-event>
+    </types:processor-declaration>
+  </types:enrichment>
+</types:mule>

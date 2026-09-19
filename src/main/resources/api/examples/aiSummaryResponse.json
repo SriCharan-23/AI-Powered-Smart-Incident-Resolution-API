@@ -1,0 +1,9 @@
+{
+  "incidentId": "INC10001",
+  "summary": "Database pool exhausted",
+  "probableRootCause": "Too many active sessions",
+  "remediationSteps": [
+    "Restart MySQL",
+    "Increase pool size"
+  ]
+}

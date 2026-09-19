@@ -1,0 +1,590 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+      xmlns:db="http://www.mulesoft.org/schema/mule/db"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+      xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+      http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+      http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd">
+      <configuration-properties
+    file="config.properties"
+    doc:name="Configuration Properties"/>
+
+    <http:listener-config name="smart-incident-api-httpListenerConfig" doc:name="HTTP Listener config" doc:id="8336ef9a-7e27-4f8d-bbe7-37ff211cf5c7">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+
+    <apikit:config name="smart-incident-api-config" api="smart-incident-api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" doc:name="Router" doc:id="9e01a74a-b268-495e-9021-8d2be5db4e90" />
+
+    <http:request-config name="HTTP_Request_config" doc:name="HTTP Request config" doc:id="576fccf7-8408-4216-927e-9e3b6603b682">
+        <http:request-connection host="generativelanguage.googleapis.com" port="443" protocol="HTTPS" />
+    </http:request-config>
+    
+
+
+     <email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="aef4d9c1-b614-4582-b440-9843b79e577f" >
+    <email:smtp-connection 
+        host="${smtp.host}"
+        port="${smtp.port}"
+        user="${smtp.user}"
+        password="${smtp.password}"
+        >
+        <email:properties>
+            <email:property key="mail.smtp.starttls.enable" value="true" />
+            <email:property key="mail.smtp.starttls.required" value="true" />
+        </email:properties>
+    </email:smtp-connection>
+</email:smtp-config>
+
+
+	<flow name="smart-incident-api-main" doc:id="425270ee-2f5c-44f8-8cea-c0fdb705fe5c">
+        <http:listener config-ref="smart-incident-api-httpListenerConfig" path="/api/*" doc:name="Listener" doc:id="d7ca0328-ab97-4fb3-841e-7cc0399716b7">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="smart-incident-api-config" doc:name="APIkit Router" doc:id="feb174ed-26d8-47c3-8be1-a39108348334" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST" doc:name="On Error Propagate" doc:id="cd35f669-17e2-46a7-a9a2-d6d50ff27c93">
+                <ee:transform doc:name="Transform Message" doc:id="7fd72d2f-cdb6-43d7-b39b-0adc97ee31a5">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">400</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND" doc:name="On Error Propagate" doc:id="2f8ecf1a-43e1-491a-a509-603c52a0608b">
+                <ee:transform doc:name="Transform Message" doc:id="d319bbea-eea9-4b77-b788-9c47ac9b43bf">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED" doc:name="On Error Propagate" doc:id="7ceb9463-91a2-4dbf-984c-0f794c516dee">
+                <ee:transform doc:name="Transform Message" doc:id="4a0e0698-b549-4cd1-b1e4-1dbb9d27076b">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE" doc:name="On Error Propagate" doc:id="0c716822-8521-4506-9b07-7b40df0fe8e5">
+                <ee:transform doc:name="Transform Message" doc:id="eeef7fe5-0f16-440e-86bf-fa11c2a7f72f">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE" doc:name="On Error Propagate" doc:id="a81a2e24-1076-4235-9f83-0d2a1ad4fe03">
+                <ee:transform doc:name="Transform Message" doc:id="5aa38cff-3cb6-4842-a812-fef9bbd7fc2a">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED" doc:name="On Error Propagate" doc:id="87ff0658-265b-4dd9-a5ef-256f07554048">
+                <ee:transform doc:name="Transform Message" doc:id="1a1d401e-a296-4fab-bd23-34170ef9505d">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+
+    <flow name="smart-incident-api-console" doc:id="3c859801-bed8-40d9-a97a-c2a447dda891">
+        <http:listener config-ref="smart-incident-api-httpListenerConfig" path="/console/*" doc:name="Listener" doc:id="122688ea-bc23-4bda-a0a7-95cbf7536600">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="smart-incident-api-config" doc:name="APIkit Console" doc:id="caf25b78-c4c9-4cfd-84b0-b825ba51a76e" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND" doc:name="On Error Propagate" doc:id="3ef7d0cb-4a4e-410c-9dfd-f1c140015ecc">
+                <ee:transform doc:name="Transform Message" doc:id="383caa66-2936-4a5f-ad4c-3236413aa401">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+
+    <flow name="get:\incidents\(incidentId)\similar:smart-incident-api-config" doc:id="1d77717a-b487-44fb-811d-b76866e064d8">
+        <set-variable variableName="incidentId" value="#[attributes.uriParams.incidentId]" doc:name="Set incidentId Variable" doc:id="afb0ea8c-6625-45a0-8fdc-334800ca7670" />
+        <db:select doc:name="Get Current Incident" doc:id="3f4446e7-56a3-46b9-a5f0-423368f813e2" config-ref="Database_Config">
+            <db:sql><![CDATA[SELECT incident_id, title, description, category, severity
+FROM incidents
+WHERE incident_id = :incident_id]]></db:sql>
+            <db:input-parameters><![CDATA[#[{incident_id: vars.incidentId}]]]></db:input-parameters>
+        </db:select>
+        <choice doc:name="Check If Current Incident Exists" doc:id="924b5f50-0cea-43dd-a607-331a581182ef">
+            <when expression="#[sizeOf(payload) &gt; 0]">
+                <set-variable variableName="currentTitle" value="#[payload[0].title default '']" doc:name="Set Current Title" doc:id="5a99b87e-4908-49b2-a15e-ed4aefad799b" />
+                <set-variable variableName="currentDescription" value="#[payload[0].description default '']" doc:name="Set Current Description" doc:id="2e6fd312-ad44-4797-96e7-28a46c8aa3eb" />
+                <set-variable variableName="currentCategory" value="#[payload[0].category default '']" doc:name="Set Current Category" doc:id="4d3470ab-91dd-41a8-bfd7-8ebf54653a8f" />
+                <logger level="INFO" doc:name="Log Current Incident" doc:id="2adab937-9b50-4796-84a8-8329e499d53b" message="#[%dw 2.0 output text/plain --- 'Finding similar incidents for: ' ++ vars.incidentId ++ ' - Title: ' ++ vars.currentTitle]" />
+                <db:select doc:name="Get All Other Incidents" doc:id="14502f36-cd48-4011-98ec-8bec84e1bf67" config-ref="Database_Config">
+                    <db:sql><![CDATA[SELECT incident_id, title, description, category, severity
+FROM incidents
+WHERE incident_id != :current_incident_id
+AND status = 'OPEN'
+ORDER BY created_at DESC
+LIMIT 50]]></db:sql>
+                    <db:input-parameters><![CDATA[#[{current_incident_id: vars.incidentId}]]]></db:input-parameters>
+                </db:select>
+                <ee:transform doc:name="Enhanced Similarity Analysis" doc:id="d0008722-e503-446b-ab25-4267cb0a9dac">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+fun extractWords(text: String): Array<String> = do {
+    var words = (text default "") splitBy(/[\s\.,;:!?()-]+/)
+    var stopWords = ["the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "man", "new", "now", "old", "see", "two", "way", "who", "boy", "did", "its", "let", "put", "say", "she", "too", "use"]
+    ---
+    (words filter ((word) -> sizeOf(word) > 2 and !(stopWords contains lower(word)))) map ((word) -> lower(word))
+}
+fun calculateSimilarity(currentText: String, compareText: String): Object = do {
+    var currentWords = extractWords(currentText)
+    var compareWords = extractWords(compareText)
+    var matchedWords = currentWords filter (word) -> (compareWords contains word)
+    var matchCount = sizeOf(matchedWords)
+    var similarityLevel = if (matchCount >= 4) "HIGH" else if (matchCount >= 2) "MEDIUM" else if (matchCount >= 1) "LOW" else "NONE"
+    ---
+    {matchedWords: matchCount, similarityLevel: similarityLevel, matchedTerms: matchedWords}
+}
+var currentContent = (vars.currentTitle default "") ++ " " ++ (vars.currentDescription default "")
+var filteredIncidents = payload filter (incident) -> do {
+    var compareContent = (incident.title default "") ++ " " ++ (incident.description default "")
+    var similarity = calculateSimilarity(currentContent, compareContent)
+    ---
+    similarity.matchedWords >= 2
+}
+var similarIncidents = filteredIncidents map (incident) -> do {
+    var compareContent = (incident.title default "") ++ " " ++ (incident.description default "")
+    var similarity = calculateSimilarity(currentContent, compareContent)
+    ---
+    {incidentId: incident.incident_id, title: incident.title, category: incident.category, severity: incident.severity, matchedWords: similarity.matchedWords, similarityLevel: similarity.similarityLevel}
+}
+var sortedIncidents = similarIncidents orderBy (-$.matchedWords)
+---
+{incidentId: vars.incidentId, similarIncidents: sortedIncidents}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+                <set-variable variableName="sortedSimilarIncidents" value="#[payload.similarIncidents]" doc:name="Save Sorted Similar Incidents" doc:id="e8e643d2-28cd-4cd2-bb03-395a2d778d8a" />
+                <ee:transform doc:name="Extract Similar Incidents as JSON" doc:id="2adec995-93be-40dd-9b56-6d01c7a1bf40">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload.similarIncidents]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+                <foreach doc:name="Persist Similar Incidents" doc:id="69a8a0be-c5e3-4be0-be64-a8904c4f2323" collection="#[payload]">
+                    <logger level="INFO" doc:name="Log Similar Incident Insert" doc:id="fdb68d01-3750-406e-a632-6b7b601342c4"
+                            message="#[%dw 2.0 output text/plain --- 'Persisting similar incident pair: ' ++ (vars.incidentId as String) ++ ' -> ' ++ ((payload.incidentId default 'unknown') as String) ++ ' [' ++ ((payload.similarityLevel default '') as String) ++ ']']" />
+                    <try doc:name="Try Similar Incident Insert" doc:id="caab126c-e54f-4f92-abc5-729b3c7ff351">
+                        <db:insert doc:name="Insert Similar Incident" doc:id="25da632d-c1c9-4bf3-bd19-aba3a8229923" config-ref="Database_Config">
+                            <db:sql><![CDATA[INSERT IGNORE INTO similar_incidents (current_incident_id, similar_incident_id, matched_words, similarity_level, created_at)
+VALUES (:current_incident_id, :similar_incident_id, :matched_words, :similarity_level, :created_at)]]></db:sql>
+                            <db:input-parameters><![CDATA[#[{
+    current_incident_id: vars.incidentId,
+    similar_incident_id: payload.incidentId,
+    matched_words:       payload.matchedWords,
+    similarity_level:    payload.similarityLevel,
+    created_at:          now() as String
+}]]]></db:input-parameters>
+                        </db:insert>
+                        <error-handler>
+                            <on-error-continue doc:name="Continue on Insert Failure" doc:id="7d636347-20b2-409a-b009-fba144f98785">
+                                <logger level="WARN" doc:name="Log Skipped Insert" doc:id="8e3b0844-15b7-4836-8149-e448f8be1d7a"
+                                        message="Similar incident insert failed, continuing..." />
+                            </on-error-continue>
+                        </error-handler>
+                    </try>
+                </foreach>
+                <ee:transform doc:name="Restore Similarity Response" doc:id="854c1d83-5c9f-49eb-b6c2-eda926a8677c">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    incidentId: vars.incidentId,
+    similarIncidents: vars.sortedSimilarIncidents
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </when>
+            <otherwise>
+                <ee:transform doc:name="404 Current Incident Not Found" doc:id="ce5d1faf-a749-4f10-a9cb-4e6a7633e92b">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Incident not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </otherwise>
+        </choice>
+    </flow>
+
+    <flow name="get:\incidents\(incidentId):smart-incident-api-config" doc:id="9d21465d-9e8e-4ccd-8956-f10c2b384b36">
+        <flow-ref doc:name="Flow Reference" doc:id="1dc5331f-c6a1-4b72-9913-2c4a931e7bea" name="get-incident-db-flow" />
+    </flow>
+
+    <flow name="post:\incidents:application\json:smart-incident-api-config" doc:id="17b60308-33a9-4d0e-b834-7dbca099411b">
+        <flow-ref doc:name="Create Incident in DB" doc:id="fbcce227-f468-493d-920a-a6d3b915bafe" name="create-incident-db-flow" />
+        <!-- Skip VM queue publishes and success transform for 409 duplicate responses -->
+        <choice doc:name="Skip VM Publish for Duplicates" doc:id="3c7c4269-0528-4fc9-a3f7-e2368878a47b">
+            <when expression="#[(vars.httpStatus default 200) as Number != 409]">
+                <vm:publish queueName="aiQueue" doc:name="Publish to AI Queue" doc:id="0877e23b-1031-4aa1-a06b-ab64e00458a5" config-ref="VM_Config" sendCorrelationId="AUTO">
+                    <vm:content><![CDATA[#[%dw 2.0
+output application/json
+---
+vars.originalPayload ++ {incidentId: vars.incidentId}]]]></vm:content>
+                </vm:publish>
+                <vm:publish queueName="emailQueue" doc:name="Publish to Email Queue" doc:id="0a51b5f5-c3d8-45db-a8fb-f75ba6884cdb" config-ref="VM_Config" sendCorrelationId="AUTO">
+                    <vm:content><![CDATA[#[%dw 2.0
+output application/json
+---
+vars.originalPayload ++ {incident_id: vars.incidentId, incidentId: vars.incidentId}]]]></vm:content>
+                </vm:publish>
+                <ee:transform doc:name="Restore Success Response" doc:id="a224a915-055b-4d85-a82f-c0533c0a104d">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message:        "Incident inserted into database successfully",
+    incident_id:    vars.incidentId,
+    correlation_id: vars.correlationId,
+    status:         "OPEN"
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </when>
+            <!-- otherwise: 409 duplicate response already set by create-incident-db-flow; passes through as-is -->
+        </choice>
+    </flow>
+
+    <!-- ============================================================
+         FIX (Bug #9): Set vars.fileBase64 from the uploaded file
+         content before calling incident-log-db-flow, so that
+         file_size is calculated correctly (was always 0 before).
+         ============================================================ -->
+    <flow name="post:\incidents\(incidentId)\logs:multipart\form-data:smart-incident-api-config" doc:id="9bc1b830-e9c5-43b7-8166-a7ecca47fc0e">
+        <logger level="INFO" doc:name="Log Upload Request" doc:id="36735269-8b12-493f-9f8e-dabbe4afd3fe" message="#['File upload request received for incident: ' ++ (attributes.uriParams.incidentId default 'unknown')]" />
+        <set-variable variableName="incidentId" value="#[attributes.uriParams.incidentId]" doc:name="Set incidentId" doc:id="bd8820a5-3cde-4910-874b-e16d3f8b5bf4" />
+        <ee:transform doc:name="Extract File Metadata" doc:id="c5e57e9a-18f5-4044-aef8-87166aa4d032">
+            <ee:variables>
+                <ee:set-variable variableName="fileName"><![CDATA[%dw 2.0
+output application/java
+---
+payload.parts.file.headers.'Content-Disposition'.filename default "uploaded-file.bin"]]></ee:set-variable>
+                <ee:set-variable variableName="contentType"><![CDATA[%dw 2.0
+output application/java
+---
+(payload.parts.file.headers.'Content-Type' default "application/octet-stream") as String]]></ee:set-variable>
+                <!-- FIX: Capture file content as base64 string so incident-log-db-flow
+                     can calculate file_size correctly via sizeOf(vars.fileBase64). -->
+                <ee:set-variable variableName="fileBase64"><![CDATA[%dw 2.0
+output application/java
+---
+payload.parts.file.content default ""]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Build Log Metadata" doc:id="cec69c7a-34a2-48c1-b953-dbe511a09d45">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{incident_id: vars.incidentId, file_name: vars.fileName, uploaded_at: now()}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <flow-ref doc:name="Save Log to Database" doc:id="9316408d-2cf9-4582-a282-874571ce0b7f" name="incident-log-db-flow" />
+        <ee:transform doc:name="Build Success Response" doc:id="4c57193c-980f-4623-a6d9-16adff96a203">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "File uploaded successfully", uploadedTime: now()}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log Upload Completion" doc:id="22cc71ab-82ba-4e17-9d89-c97d15c4a7a0" message="#['File upload completed for incident: ' ++ vars.incidentId]" />
+    </flow>
+
+    <flow name="post:\incidents\retry:application\json:smart-incident-api-config" doc:id="09a06f91-27a7-4cf7-86e6-f949a7bfed6c">
+        <flow-ref doc:name="Flow Reference" doc:id="519c9400-3944-42a0-9ea6-05ad0b3f912b" name="retry-incident-db-flow" />
+        <logger level="INFO" doc:name="Logger" doc:id="45907c2b-aa6a-4b99-97f8-2da1459d004c" message="#[%dw 2.0 output text/plain --- 'Retry request processed']" />
+    </flow>
+
+    <flow name="post:\incidents\(incidentId)\summarize:smart-incident-api-config" doc:id="1babaf4c-bb97-43e8-b336-44435765613e">
+        <set-variable variableName="incidentId" value="#[attributes.uriParams.incidentId]" doc:name="Set incidentId Variable" doc:id="46b42546-90d1-4236-9959-680838e55588" />
+        <db:select doc:name="Get Incident Details" doc:id="5ed19730-68d4-4fa1-99af-abe91fdd6eb6" config-ref="Database_Config">
+            <db:sql><![CDATA[SELECT title, description, category, severity
+FROM incidents
+WHERE incident_id = :incident_id]]></db:sql>
+            <db:input-parameters><![CDATA[#[{incident_id: vars.incidentId}]]]></db:input-parameters>
+        </db:select>
+        <choice doc:name="Check If Incident Found" doc:id="2df60abd-0439-460f-b566-3d598d1a3968">
+            <when expression="#[sizeOf(payload) &gt; 0]">
+                <ee:transform doc:name="Build AI Input Text" doc:id="892f8c5e-1afc-4117-aacb-fd2192707966">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    incidentId: vars.incidentId,
+    aiInputText:
+        "Title: " ++ (payload[0].title default "") ++ "\n" ++
+        "Description: " ++ (payload[0].description default "") ++ "\n" ++
+        "Category: " ++ (payload[0].category default "") ++ "\n" ++
+        "Severity: " ++ (payload[0].severity default "")
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+                <try doc:name="Try Gemini Summarize" doc:id="6c89237a-b249-481e-81f5-8ff13f9e49ce">
+                    <http:request doc:name="Call Gemini Summarize" doc:id="aab44a10-409f-4d6c-a39b-36a7c4b991af"
+                                  method="POST" path="/v1beta/models/gemini-3.5-flash:generateContent"
+                                  config-ref="HTTP_Request_config" responseTimeout="60000">
+                        <http:body><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+    contents: [{parts: [{
+        text:
+            "You are an IT incident analysis AI.\n" ++
+            "Analyze the incident and provide short professional response.\n" ++
+            "Maximum 100 words. Do not use markdown.\n\n" ++
+            "Format:\nIssue Detected:\nRoot Cause:\nRecommended Fix:\n\n" ++
+            payload.aiInputText
+    }]}]
+}]]]></http:body>
+                        <http:headers><![CDATA[#[output application/java --- {"Content-Type": "application/json"}]]]></http:headers>
+                        <http:query-params><![CDATA[#[output application/java --- {"key": p("gemini.api.key")}]]]></http:query-params>
+                    </http:request>
+                    <ee:transform doc:name="Build Summary Response" doc:id="663a09e8-6326-4a80-b797-4d5fde057f89">
+                        <ee:message>
+                            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    incidentId: vars.incidentId,
+    aiSummary: payload.candidates[0].content.parts[0].text default "No summary available"
+}]]></ee:set-payload>
+                        </ee:message>
+                    </ee:transform>
+                    <error-handler>
+                        <on-error-continue doc:name="On Gemini Error Continue" doc:id="322ffcc7-18f3-4052-b186-e2f8828b1e57">
+                            <logger level="ERROR" doc:name="Log Gemini Error" doc:id="d7601f72-809e-4277-b540-0fe0eebf5c0e" message="Gemini API call failed: #[error.description]" />
+                            <ee:transform doc:name="Gemini Fallback Response" doc:id="0e8ca000-7a74-4a4f-b727-9dd047930083">
+                                <ee:message>
+                                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    incidentId: vars.incidentId,
+    aiSummary: "AI summary temporarily unavailable"
+}]]></ee:set-payload>
+                                </ee:message>
+                            </ee:transform>
+                        </on-error-continue>
+                    </error-handler>
+                </try>
+            </when>
+            <otherwise>
+                <ee:transform doc:name="404 Incident Not Found" doc:id="6a69845e-d433-4e97-9874-11683e856581">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Incident not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </otherwise>
+        </choice>
+    </flow>
+
+	<!-- ============================================================
+	     FIX (Bug #7): toAddresses now uses contact_email (snake_case)
+	     with a camelCase fallback. The original payload from the DB
+	     flow stores this field as contact_email; using only
+	     payload.contactEmail caused null toAddresses and an SMTP
+	     failure on every email send.
+	     ============================================================ -->
+	<flow name="emailConsumerFlow"
+      doc:id="d65610f2-93f3-42f4-85ff-bc838b2097f9">
+
+    <vm:listener
+            queueName="emailQueue"
+            doc:name="Listener"
+            doc:id="b393adcc-413a-42a0-97e8-b9003e034036"
+            config-ref="VM_Config"
+            outputMimeType="application/json"/>
+
+    <logger
+            level="INFO"
+            doc:name="Log Email Payload"
+            message='#["Received Email Payload: " ++ write(payload default {}, "application/json")]'/>
+
+    <email:send
+    doc:name="Send Email"
+    doc:id="b2e6bfd9-6010-4d0a-871d-00ddfef0a02a"
+    config-ref="Email_SMTP"
+    fromAddress="support@fixitfast.com"
+    subject='#["Incident Created - " ++ (payload.incidentId default payload.incident_id default "unknown")]'
+    toAddresses='#[[payload.contact_email default payload.contactEmail default "noreply@fixitfast.com"]]'>
+
+    <email:body contentType="text/html">
+        <email:content><![CDATA[#[%dw 2.0
+output text/plain
+---
+"<html><body>" ++
+"<h2>Incident Created</h2>" ++
+"<p><b>ID:</b> " ++ (payload.incidentId default payload.incident_id default "unknown") ++ "</p>" ++
+"<p><b>Severity:</b> " ++ (payload.severity default "unknown") ++ "</p>" ++
+"<p><b>Title:</b> " ++ (payload.title default "unknown") ++ "</p>" ++
+"</body></html>"
+]]]></email:content>
+    </email:body>
+
+</email:send>
+
+<logger
+    level="INFO"
+    doc:name="Email Sent Logger"
+    message="Email sent successfully"/>    <error-handler>
+        <on-error-continue enableNotifications="true" logException="true"
+            doc:name="Email Send Error Handler"
+            doc:id="503039f1-4bf7-4ae8-b81b-05dfc811b8c9"
+            doc:description="On SMTP failure: persists the failed record, then publishes to retryQueue with failureSource=email so consume-retry-vm-flow routes it back to emailQueue">
+            <set-variable variableName="originalPayload" value="#[payload]"
+                doc:name="Capture originalPayload on email failure"
+                doc:id="c2437501-d0e0-47aa-8b7a-5851f5e47b7a"/>
+            <set-variable variableName="failureReason" value="#[error.description]"
+                doc:name="Set failureReason"
+                doc:id="dcdfc5d4-80af-4ad5-8e36-abaa8324fb74"/>
+           <logger level="ERROR"
+    doc:name="Log Email Send Failure"
+    doc:id="dc4a1ff2-b84b-4ac5-91dd-1496a96a762d"
+    message="#[%dw 2.0
+output text/plain
+---
+'Email send failed for incident: ' ++ ((vars.originalPayload.incidentId default vars.originalPayload.incident_id default 'unknown') as String) ++ ' | Error: ' ++ ((error.description default 'unknown') as String)]"/>
+            <flow-ref doc:name="Persist Failed Email Record"
+                doc:id="7db7a834-0951-445a-b489-cb77b302d9e4"
+                name="insert-failed-record-db-flow"/>
+            <!-- ============================================================
+                 Retry cap check: if already at max (3), go to DLQ directly.
+                 Otherwise increment and publish to retryQueue.
+                 This prevents infinite retry loops when the SMTP server is
+                 permanently down (e.g. wrong credentials / internal error).
+                 ============================================================ -->
+            <choice doc:name="Check Email Retry Cap" doc:id="d448c857-a35c-413d-99bd-3a31772594e1">
+                <when expression="#[(vars.originalPayload.retryCount default 0) >= 3]">
+                    <vm:publish queueName="deadLetterQueue"
+                        doc:name="Publish Email Failure to DLQ"
+                        doc:id="2c360a02-1144-42ee-aa4a-3785c14309ed"
+                        config-ref="VM_Config"
+                        sendCorrelationId="AUTO">
+                        <vm:content><![CDATA[#[%dw 2.0
+output application/json
+---
+vars.originalPayload ++ {
+    failureReason: vars.failureReason,
+    failureSource: "email"
+}]]]></vm:content>
+                    </vm:publish>
+                    <logger level="ERROR"
+                        doc:name="Log Email Max Retries DLQ"
+                        doc:id="4983e1a2-efa3-4593-b05f-b4fef8c28e4c"
+                        message="#['Max email retries (3) exceeded - moved to deadLetterQueue for incident: ' ++ (vars.originalPayload.incidentId default 'unknown')]"/>
+                </when>
+                <otherwise>
+                    <vm:publish queueName="retryQueue"
+                        doc:name="Publish to Retry Queue on Email Failure"
+                        doc:id="0ae11f38-c9f8-4f2b-9dcb-50792fe6cf05"
+                        config-ref="VM_Config"
+                        sendCorrelationId="AUTO">
+                        <vm:content><![CDATA[#[%dw 2.0
+output application/json
+---
+vars.originalPayload ++ {
+    retryCount:    (vars.originalPayload.retryCount default 0) + 1,
+    failureSource: "email"
+}]]]></vm:content>
+                    </vm:publish>
+                    <logger level="WARN"
+                        doc:name="Log Email Retry Queued"
+                        doc:id="fc65ab28-44b1-4822-aae6-c7d848c05552"
+                        message="#['Email failure queued for retry. incidentId: ' ++ (vars.originalPayload.incidentId default 'unknown') ++ ' nextRetryCount: ' ++ ((vars.originalPayload.retryCount default 0) + 1) as String]"/>
+                </otherwise>
+            </choice>
+        </on-error-continue>
+    </error-handler>
+
+</flow>
+</mule>

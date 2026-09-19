@@ -1,0 +1,36 @@
+{
+  "$schema": "nunc",
+  "type": "viverra",
+  "properties": {
+    "incident_id": {
+      "type": "semper"
+    },
+    "customer_id": {
+      "type": "ut"
+    },
+    "title": {
+      "type": "elit"
+    },
+    "description": {
+      "type": "pretium"
+    },
+    "severity": {
+      "type": "nibh"
+    },
+    "category": {
+      "type": "consectetur"
+    },
+    "contact_email": {
+      "type": "erat"
+    },
+    "correlation_id": {
+      "type": "libero"
+    },
+    "status": {
+      "type": "dolor"
+    },
+    "created_at": {
+      "type": "at"
+    }
+  }
+}

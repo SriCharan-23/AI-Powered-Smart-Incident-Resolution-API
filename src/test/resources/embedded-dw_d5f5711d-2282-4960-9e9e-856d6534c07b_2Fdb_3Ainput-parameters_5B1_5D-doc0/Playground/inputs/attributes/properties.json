@@ -1,0 +1,32 @@
+{
+  "incident_id": {
+    "type": "mi"
+  },
+  "customer_id": {
+    "type": "at"
+  },
+  "title": {
+    "type": "convallis"
+  },
+  "description": {
+    "type": "Lorem"
+  },
+  "severity": {
+    "type": "venenatis"
+  },
+  "category": {
+    "type": "eros"
+  },
+  "contact_email": {
+    "type": "molestie"
+  },
+  "correlation_id": {
+    "type": "Lorem"
+  },
+  "status": {
+    "type": "Aliquam"
+  },
+  "created_at": {
+    "type": "pretium"
+  }
+}

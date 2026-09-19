@@ -1,0 +1,12 @@
+{
+  "incidentId": "INC202605170001",
+  "customerId": "CUST1001",
+  "title": "Database timeout issue",
+  "description": "Unable to connect to database server",
+  "severity": "HIGH",
+  "category": "DATABASE",
+  "contactEmail": "user@test.com",
+  "status": "OPEN",
+  "correlationId": "550e8400-e29b-41d4-a716-446655440000",
+  "createdAt": "2026-05-17T18:30:00Z"
+}

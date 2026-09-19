@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:db="http://www.mulesoft.org/schema/mule/db"
+      xsi:schemaLocation="
+      http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+      http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+
+    <munit:config name="similar-incident-test"/>
+
+    <munit:test name="similar-incident-success-test"
+                description="Test Similar Incident Flow">
+
+        <munit:behavior>
+
+            <!--
+                FIX #1: Set attributes so the flow's first step
+                  set-variable variableName="incidentId" value="#[attributes.uriParams.incidentId]"
+                resolves to "INC001" instead of null.
+                This prevents the '++' null error in the logger.
+            -->
+            <munit:set-event doc:name="Set URI Params on Attributes">
+                <munit:attributes value='#[{uriParams: {incidentId: "INC001"}}]'/>
+            </munit:set-event>
+
+            <!--
+                FIX #2a: First db:select mock — "Get Current Incident"
+                Must return a list with one row whose fields match exactly
+                what the flow reads: incident_id, title, description, category, severity.
+                MUnit consumes mock-when entries for the same processor in FIFO order,
+                so this answers the FIRST db:select call.
+            -->
+            <munit-tools:mock-when processor="db:select"
+                                   doc:name="Mock: Get Current Incident">
+                <munit-tools:then-return>
+                    <munit-tools:payload mediaType="application/json"
+                        value='#[output application/json ---
+[{
+    incident_id:  "INC001",
+    title:        "Server Down",
+    description:  "Production server is unavailable",
+    category:     "Infrastructure",
+    severity:     "HIGH"
+}]]'/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+            <!--
+                FIX #2b: Second db:select mock — "Get All Other Incidents"
+                Must return rows with fields the similarity transform reads:
+                incident_id, title, description, category, severity.
+                Words that overlap with the current incident title/description
+                are intentional so similarIncidents is non-empty.
+                This answers the SECOND db:select call (FIFO).
+            -->
+            <munit-tools:mock-when processor="db:select"
+                                   doc:name="Mock: Get All Other Incidents">
+                <munit-tools:then-return>
+                    <munit-tools:payload mediaType="application/json"
+                        value='#[output application/json ---
+[{
+    incident_id:  "INC100",
+    title:        "Server Failure",
+    description:  "Production server down and unavailable",
+    category:     "Infrastructure",
+    severity:     "HIGH"
+},
+{
+    incident_id:  "INC101",
+    title:        "Database Down",
+    description:  "Database server connection failure on production",
+    category:     "Infrastructure",
+    severity:     "MEDIUM"
+}]]'/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+            <!--
+                FIX #3: Mock db:insert so the foreach "Persist Similar Incidents"
+                block does not fail trying to reach a real database.
+                Returning 1 simulates one affected row, which is the normal result.
+            -->
+            <munit-tools:mock-when processor="db:insert"
+                                   doc:name="Mock: Insert Similar Incident">
+                <munit-tools:then-return>
+                    <munit-tools:payload mediaType="application/java"
+                        value="#[1]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+        </munit:behavior>
+
+        <munit:execution>
+            <!--
+                No need for set-payload or set-variable here.
+                The flow drives everything from attributes.uriParams.incidentId
+                and the two db:select results — both already mocked above.
+            -->
+            <flow-ref name="get:\incidents\(incidentId)\similar:smart-incident-api-config"
+                      doc:name="Execute Similar Incident Flow"/>
+        </munit:execution>
+
+        <munit:validation>
+
+            <!-- db:select must be called exactly twice (current + others) -->
+            <munit-tools:verify-call processor="db:select"
+                                     times="2"
+                                     doc:name="Verify two DB selects"/>
+
+            <!-- db:insert must be called at least once (one per similar incident found) -->
+            <munit-tools:verify-call processor="db:insert"
+                                     atLeast="1"
+                                     doc:name="Verify similar incident persisted"/>
+
+            <!-- Final payload must carry back the originating incidentId -->
+            <munit-tools:assert-that
+                expression="#[payload.incidentId]"
+                is="#[MunitTools::equalTo('INC001')]"
+                doc:name="Assert response incidentId is INC001"/>
+
+            <!-- similarIncidents key must exist and be an array -->
+            <munit-tools:assert-that
+                expression="#[payload.similarIncidents != null]"
+                is="#[MunitTools::equalTo(true)]"
+                doc:name="Assert similarIncidents is present"/>
+
+            <!-- At least one match expected given the overlapping words -->
+            <munit-tools:assert-that
+                expression="#[sizeOf(payload.similarIncidents) > 0]"
+                is="#[MunitTools::equalTo(true)]"
+                doc:name="Assert at least one similar incident returned"/>
+
+        </munit:validation>
+
+    </munit:test>
+
+</mule>

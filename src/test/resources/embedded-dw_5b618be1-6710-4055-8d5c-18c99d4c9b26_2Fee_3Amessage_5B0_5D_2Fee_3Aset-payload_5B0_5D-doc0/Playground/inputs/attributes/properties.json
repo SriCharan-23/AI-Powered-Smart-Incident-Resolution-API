@@ -1,0 +1,32 @@
+{
+  "incident_id": {
+    "type": "pulvinar"
+  },
+  "customer_id": {
+    "type": "venenatis"
+  },
+  "title": {
+    "type": "ipsum"
+  },
+  "description": {
+    "type": "venenatis"
+  },
+  "severity": {
+    "type": "a"
+  },
+  "category": {
+    "type": "ut"
+  },
+  "contact_email": {
+    "type": "molestie"
+  },
+  "correlation_id": {
+    "type": "a"
+  },
+  "status": {
+    "type": "dictum"
+  },
+  "created_at": {
+    "type": "ac"
+  }
+}
