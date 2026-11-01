@@ -13,7 +13,6 @@ Built with Anypoint Studio and deployed on CloudHub.
 - Asynchronous processing with VM queues
 - Automatic retries (up to 3 attempts) and a dead-letter queue for failed messages
 - Email notifications over SMTP
-- Client ID enforcement (`client_id` and `client_secret` headers)
 - Error handling, logging, and MUnit test cases
 
 ## Tech Stack
@@ -28,7 +27,7 @@ Built with Anypoint Studio and deployed on CloudHub.
 | AI | Google Gemini API |
 | Notifications | SMTP |
 | Testing | MUnit |
-| Build and deploy | Maven, Anypoint Platform (CloudHub) |
+| Build and deploy | Anypoint Platform (CloudHub) |
 
 ## API Endpoints
 
@@ -126,4 +125,4 @@ Sri Charan Rao Hibare
 
 ## CloudHub Deplyed Link :- 	
 
-https://smart-incident-resolution-app-o4ov3e.5sc6y6-3.usa-e2.cloudhub.io
+https://smart-incident-resolution-api-s394d9.5sc6y6-3.usa-e2.cloudhub.io
