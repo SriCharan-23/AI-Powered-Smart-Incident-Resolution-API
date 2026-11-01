@@ -49,8 +49,6 @@ Interactive API documentation is served at `/console/`.
 ```http
 POST /api/incidents
 Content-Type: application/json
-client_id: <your-client-id>
-client_secret: <your-client-secret>
 
 {
   "customerId": "CUST1001",
